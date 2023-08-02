@@ -2,9 +2,12 @@ package core
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
+	"io"
 	"log"
 	"poc/internal/core/env"
+
 	_ "github.com/godror/godror" // Driver de Oracle para sqlx
 
 	"github.com/jmoiron/sqlx"
@@ -17,7 +20,7 @@ type OracleSqlxStatementGodror struct {
 }
 
 func (o *OracleSqlxStatementGodror) OpenOracle(config env.EnvApp) {
-	connectionString := "oracle://" + config.DB_USERNAME + ":" + config.DB_PASSWORD + "@" + config.DB_HOST + ":" + config.DB_PORT + "/" + config.DB_SERVICE
+	connectionString := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, config.DB_USERNAME, config.DB_PASSWORD, fmt.Sprintf("%s:%s/%s", config.DB_HOST, config.DB_PORT, config.DB_SERVICE))
 	db, err := sqlx.Open("godror", connectionString)
 	if err != nil {
 		panic(err)
@@ -36,35 +39,31 @@ func (o *OracleSqlxStatementGodror) ExecuteSPWithCursor() error {
 	// Prepare the statement with cursor output
 	defer o.db.Close()
 	// Definir el nombre del procedimiento almacenado y sus argumentos
-	spName := "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO"
 	cuil := "20352579972" // Ejemplo de valor de entrada
+	var rset1 driver.Rows
+	const query = `BEGIN PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO(:1, :2); END;`
 
-	// Preparar el comando con el cursor de salida
-	cmdText := fmt.Sprintf("BEGIN %s(:1, :2); END;", spName)
-
-	// Definir una variable para almacenar el cursor de salida
-	var cursor *sqlx.Rows
-
-	// Ejecutar el procedimiento almacenado con el cursor de salida
-	if err := o.db.Select(&cursor, cmdText, cuil, sql.Out{}); err != nil {
-		log.Fatalln(err)
+	stmt, err := o.db.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("%s: %w", query, err)
 	}
-	defer cursor.Close()
-
-	// Aquí puedes iterar a través de las filas del cursor y procesar los resultados
-	for cursor.Next() {
-		// Escanear los valores de la fila en un struct u otra estructura
-		var resultado struct {
-			Columna1 int
-			Columna2 string
-		}
-		if err := cursor.StructScan(&resultado); err != nil {
-			log.Fatalln(err)
-		}
-
-		// Realizar acciones con los valores escaneados
-		fmt.Printf("Columna1: %d, Columna2: %s\n", resultado.Columna1, resultado.Columna2)
+	defer stmt.Close()
+	if _, err := stmt.Exec(sql.Out{Dest: &rset1}, cuil); err != nil {
+		log.Printf("Error running %q: %+v", query, err)
 	}
+	defer rset1.Close()
 
+	cols1 := rset1.(driver.RowsColumnTypeScanType).Columns()
+	dests1 := make([]driver.Value, len(cols1))
+	for {
+		if err := rset1.Next(dests1); err != nil {
+			if err == io.EOF {
+				break
+			}
+			rset1.Close()
+			return err
+		}
+		fmt.Println(dests1)
+	}
 	return nil
 }
