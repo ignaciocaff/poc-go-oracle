@@ -144,7 +144,7 @@ o.db.Raw(cmdText, sql.Out{Dest: &cursor}, cuil).Scan(&results)
 
 ### Conclusiones parciales 
 
-- Nada que no sea usar el cursor de github.com/sijms/go-ora/v2 y por lo tanto esa forma de mierda de recorrer funciona hasta acá
+- Nada que no sea usar el cursor de github.com/sijms/go-ora/v2 y por lo tanto esa forma de recorrer funciona hasta acá
 - GORM -> call register type before use user defined type (UDT) con cualquiera driver o misma forma de recorrer si paso cursor
 - gobuffalo/pop -> usa godror
 
