@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"poc/internal/core/env"
+	_ "github.com/godror/godror" // Driver de Oracle para sqlx
 
 	"github.com/jmoiron/sqlx"
 )
@@ -17,7 +18,7 @@ type OracleSqlxStatementGodror struct {
 
 func (o *OracleSqlxStatementGodror) OpenOracle(config env.EnvApp) {
 	connectionString := "oracle://" + config.DB_USERNAME + ":" + config.DB_PASSWORD + "@" + config.DB_HOST + ":" + config.DB_PORT + "/" + config.DB_SERVICE
-	db, err := sqlx.Open("oracle", connectionString)
+	db, err := sqlx.Open("godror", connectionString)
 	if err != nil {
 		panic(err)
 	}
