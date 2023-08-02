@@ -11,18 +11,22 @@ Aparentemente sería la siguiente:
 
 La ejecucion de procedimientos almacenados con cursores es una operacion especifica del "driver"
 
-Ambas implementaciones ya sea que use:
-```go    var cursor *sqlx.Rows
+### Usando `sqlx`
+``` go  var cursor *sqlx.Rows
     execArgs := make([]interface{}, len(args)+1)
     execArgs[0] = sql.Out{Dest: &cursor}
     copy(execArgs[1:], args)
 
-    _, err := o.db.Exec(cmdText, execArgs...)```
-O
-```go      var cursor *sql.Rows
+    _, err := o.db.Exec(cmdText, execArgs...)
+```
+### Usando `sql`
+
+``` go      var cursor *sql.Rows
     execArgs := make([]interface{}, len(args)+1)
     execArgs[0] = sql.Out{Dest: &cursor}
     copy(execArgs[1:], args)
-    _, err := o.db.Exec(cmdText, execArgs...)```
+    _, err := o.db.Exec(cmdText, execArgs...)
+```
+
 Nos da lo mismo, sqlx o sql, el error es: **panic: error executing stored procedure: unsupported go type**
 
