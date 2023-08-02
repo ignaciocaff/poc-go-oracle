@@ -3,10 +3,7 @@ package main
 import (
 	//"context"
 	"poc/internal/core"
-	"poc/internal/core/env"
-
-	_ "github.com/sijms/go-ora/v2"
-)
+	"poc/internal/core/env")
 
 func main() {
 	//ctx := context.Background()
@@ -24,8 +21,11 @@ func main() {
 	oracleWithSqlxStament.OpenOracle(config)
 	oracleWithSqlxStament.ExecuteSPWithCursor()*/
 
-	oracleSqlxStatementGorm := core.OracleSqlxStatementGorm{}
+	/*oracleSqlxStatementGorm := core.OracleSqlxStatementGorm{}
 	oracleSqlxStatementGorm.OpenOracle(config)
-	oracleSqlxStatementGorm.ExecuteSPWithCursor()
+	oracleSqlxStatementGorm.ExecuteSPWithCursor()*/
 
+	oracleSqlxStatementWithGodror := core.OracleSqlxStatementGodror{}
+	oracleSqlxStatementWithGodror.OpenOracle(config)
+	oracleSqlxStatementWithGodror.ExecuteSPWithCursor()
 }
