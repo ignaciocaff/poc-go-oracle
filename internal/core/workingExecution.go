@@ -9,6 +9,7 @@ import (
 	"log"
 	"poc/internal/core/env"
 	"reflect"
+	"strings"
 	"time"
 
 	_ "github.com/godror/godror" // Driver de Oracle para sqlx
@@ -40,6 +41,7 @@ func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 	o.db = db
 	var queryResultColumnOne string
 	row := o.db.QueryRow("SELECT systimestamp FROM dual")
+
 	err = row.Scan(&queryResultColumnOne)
 	if err != nil {
 		panic(fmt.Errorf("error scanning db: %w", err))
@@ -48,7 +50,7 @@ func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 }
 
 func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, spResult interface{}, args ...interface{}) error {
-	defer o.db.Close()
+	//defer o.db.Close()
 
 	conn, err := o.db.Conn(ctx)
 	if err != nil {
@@ -107,9 +109,13 @@ func buildCmdText(spName string, args ...interface{}) string {
 }
 
 func mapTo(obj interface{}, cols []string, dests []driver.Value) {
+	type CustomMap struct {
+		string
+		bool
+	}
 	v := reflect.ValueOf(obj).Elem()
 	t := reflect.TypeOf(obj).Elem()
-	tags := make(map[string]string)
+	tags := make(map[string]CustomMap)
 
 	if v.Kind() != reflect.Struct {
 		fmt.Println("it is not a struct")
@@ -119,19 +125,24 @@ func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		fieldName := field.Name
-		tagValue := field.Tag.Get("oracle")
+		arrayTags := field.Tag.Get("oracle")
+		parts := strings.Split(arrayTags, ",")
+		tagValue := parts[0]
+		convertible := len(parts) > 1 && parts[1] == "convert"
 		if tagValue != "" {
-			tags[tagValue] = fieldName
+			tags[tagValue] = CustomMap{fieldName, convertible}
 		}
 	}
 	for i, col := range cols {
-		fieldName := tags[col]
-		fmt.Println(fieldName)
+		fieldName := tags[col].string
 		field := v.FieldByName(fieldName)
 		if field.IsValid() && field.CanSet() {
 			fieldType := field.Type()
 			val := dests[i]
 			if val != nil {
+				if tags[col].bool && fieldType.Kind() == reflect.Bool {
+					val = val == "S"
+				}
 				destType := reflect.TypeOf(val)
 				if destType.ConvertibleTo(fieldType) {
 					field.Set(reflect.ValueOf(val).Convert(fieldType))
@@ -144,9 +155,4 @@ func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 		}
 	}
 
-}
-
-type CustomMap struct {
-	string
-	bool
 }
