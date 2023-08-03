@@ -49,13 +49,11 @@ func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 	fmt.Println("the time in the database ", queryResultColumnOne)
 }
 
-func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, spResult interface{}, args ...interface{}) error {
-	//defer o.db.Close()
-
+func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, results interface{}, args ...interface{}) (interface{}, error) {
 	conn, err := o.db.Conn(ctx)
 	if err != nil {
 		log.Printf("error getting connection: %+v", err)
-		return err
+		return nil, err
 	}
 
 	var cursor driver.Rows
@@ -71,41 +69,51 @@ func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName str
 	cols := cursor.(driver.RowsColumnTypeScanType).Columns()
 	rows := make([]driver.Value, len(cols))
 
-	err = populateRows(cursor, cols, rows)
+	allRows, err := populateRows(cursor, cols, rows)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	mapTo(spResult, cols, rows)
+
+	mapToSlice(results, cols, allRows)
 	cursor.Close()
-	return nil
+	return nil, nil
 }
 
-func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) error {
+func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) ([][]driver.Value, error) {
+	var allRows [][]driver.Value
 	for {
 		if err := cursor.Next(rows); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return err
+			return nil, err
+		}
+		newRow := make([]driver.Value, len(rows))
+		copy(newRow, rows)
+		allRows = append(allRows, newRow)
+	}
+	return allRows, nil
+}
+
+func mapToSlice(slicePtr interface{}, cols []string, allRows [][]driver.Value) error {
+	slicePtrValue := reflect.ValueOf(slicePtr)
+
+	if slicePtrValue.Kind() != reflect.Ptr || slicePtrValue.Elem().Kind() != reflect.Slice {
+		fmt.Println("it is not a slice")
+	}
+
+	sliceType := slicePtrValue.Elem().Type()
+	elemType := sliceType.Elem()
+
+	for _, val := range allRows {
+		if val != nil {
+			newElem := reflect.New(elemType).Elem()
+			mapTo(newElem.Addr().Interface(), cols, val)
+			slicePtrValue.Elem().Set(reflect.Append(slicePtrValue.Elem(), newElem))
+
 		}
 	}
 	return nil
-}
-
-func buildExecutionArguments(cursor *driver.Rows, args ...interface{}) []interface{} {
-	execArgs := make([]interface{}, len(args)+1)
-	execArgs[0] = sql.Out{Dest: cursor}
-	copy(execArgs[1:], args)
-	return execArgs
-}
-
-func buildCmdText(spName string, args ...interface{}) string {
-	cmdText := fmt.Sprintf("BEGIN %s(:1", spName)
-	for i := 0; i < len(args); i++ {
-		cmdText += fmt.Sprintf(", :%d", i+2)
-	}
-	cmdText += "); END;"
-	return cmdText
 }
 
 func mapTo(obj interface{}, cols []string, dests []driver.Value) {
@@ -154,5 +162,33 @@ func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 			}
 		}
 	}
+}
 
+func buildExecutionArguments(cursor *driver.Rows, args ...interface{}) []interface{} {
+	execArgs := make([]interface{}, len(args)+1)
+	execArgs[0] = sql.Out{Dest: cursor}
+	copy(execArgs[1:], args)
+	return execArgs
+}
+
+func buildCmdText(spName string, args ...interface{}) string {
+	cmdText := fmt.Sprintf("BEGIN %s(:1", spName)
+	for i := 0; i < len(args); i++ {
+		cmdText += fmt.Sprintf(", :%d", i+2)
+	}
+	cmdText += "); END;"
+	return cmdText
+}
+
+
+func populateRowsOneResult(cursor driver.Rows, cols []string, rows []driver.Value) error {
+	for {
+		if err := cursor.Next(rows); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+	}
+	return nil
 }

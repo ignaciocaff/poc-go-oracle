@@ -35,16 +35,19 @@ func main() {
 	var res1 []Res1
 	var res2 []Res2
 	var res3 []Res3
-
+	var res4 []Res4
 	workingExecution := core.WorkingExecution{}
 	workingExecution.OpenOracle(config)
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_NOMBRE_TIPO_TRAMITE", &res1, 4)
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_VALIDAR_USUARIO_TRAMITE", &res2, "23179917939", 54075)
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", &res3, "20352579972")
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_BANCOS", &res4)
 
 	fmt.Printf("Desde el main %+v\n", res1)
 	fmt.Printf("Desde el main %+v\n", res2)
 	fmt.Printf("Desde el main %+v\n", res3)
+	fmt.Printf("Desde el main %+v\n", res4)
+
 }
 
 type Res3 struct {
@@ -64,4 +67,9 @@ type Res2 struct {
 
 type Res1 struct {
 	NombreTramite string `oracle:"NombreTramite,convert"`
+}
+
+type Res4 struct {
+	Id     int    `oracle:"Id"`
+	Nombre string `oracle:"Nombre"`
 }
