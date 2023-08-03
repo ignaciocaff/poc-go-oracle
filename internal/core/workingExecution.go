@@ -8,17 +8,18 @@ import (
 	"io"
 	"log"
 	"poc/internal/core/env"
+	"reflect"
 	"time"
 
 	_ "github.com/godror/godror" // Driver de Oracle para sqlx
 	"github.com/jmoiron/sqlx"
 )
 
-type OracleSqlxStatement struct {
+type WorkingExecution struct {
 	db *sqlx.DB
 }
 
-type Resultado struct {
+type Persona struct {
 	Cuil            string    `oracle:"Cuit/cuil"`
 	Apellido        string    `oracle:"Apellido"`
 	Nombre          string    `oracle:"Nombre"`
@@ -26,11 +27,10 @@ type Resultado struct {
 	FechaNacimiento time.Time `oracle:"FechaNacimiento"`
 	Genero          string    `oracle:"Genero"`
 	IdLocalidad     int       `oracle:"IdLocalidad"`
-	Mail			string    `oracle:"Mail"`
-
+	Mail            string    `oracle:"Mail"`
 }
 
-func (o *OracleSqlxStatement) OpenOracle(config env.EnvApp) {
+func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 	timeZone := "UTC"
 	connectionString := fmt.Sprintf(`user="%s" password="%s" timezone="%s" connectString="%s"`, config.DB_USERNAME, config.DB_PASSWORD, timeZone, fmt.Sprintf("%s:%s/%s", config.DB_HOST, config.DB_PORT, config.DB_SERVICE))
 	db, err := sqlx.Open("godror", connectionString)
@@ -47,47 +47,66 @@ func (o *OracleSqlxStatement) OpenOracle(config env.EnvApp) {
 	fmt.Println("the time in the database ", queryResultColumnOne)
 }
 
-func (o *OracleSqlxStatement) ExecuteSPWithCursor(ctx context.Context) error {
-	// Prepare the statement with cursor output
+func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, spResult interface{}, args ...interface{}) error {
 	defer o.db.Close()
-	// Definir el nombre del procedimiento almacenado y sus argumentos
-	const query = `BEGIN PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO(:1, :2); END;`
-	cuil := "20352579972" // Ejemplo de valor de entrada
-	// Definir una variable para almacenar el cursor de salida
-	var cursor driver.Rows
-	execArgs := make([]interface{}, 2)
-	execArgs[0] = sql.Out{Dest: &cursor}
-	execArgs[1] = cuil
 
 	conn, err := o.db.Conn(ctx)
 	if err != nil {
 		log.Printf("error getting connection: %+v", err)
+		return err
 	}
-	// Ejecutar el procedimiento almacenado con el cursor de salida
-	if _, err := conn.ExecContext(ctx, query, sql.Out{Dest: &cursor}, cuil); err != nil {
-		log.Printf("error running %q: %+v", query, err)
+
+	var cursor driver.Rows
+
+	cmdText := buildCmdText(spName, args...)
+
+	execArgs := buildExecutionArguments(&cursor, args...)
+
+	if _, err := conn.ExecContext(ctx, cmdText, execArgs...); err != nil {
+		log.Printf("error running %q: %+v", cmdText, err)
 	}
+
 	cols := cursor.(driver.RowsColumnTypeScanType).Columns()
 	rows := make([]driver.Value, len(cols))
-	for {
-		if err := cursor.Next(rows); err != nil {
 
-			if err == io.EOF {
-				break
-			}
-			cursor.Close()
-			return err
-		}
+	err = populateRows(cursor, cols, rows)
+	if err != nil {
+		return err
 	}
-
-	var resultado Resultado
-	//mapTo(&resultado, cols, rows)
-	fmt.Println(cols)
-	fmt.Printf("%+v\n", resultado)
+	mapTo(spResult, cols, rows)
+	cursor.Close()
 	return nil
 }
 
-/*func mapTo(obj interface{}, cols []string, dests []driver.Value) {
+func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) error {
+	for {
+		if err := cursor.Next(rows); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func buildExecutionArguments(cursor *driver.Rows, args ...interface{}) []interface{} {
+	execArgs := make([]interface{}, len(args)+1)
+	execArgs[0] = sql.Out{Dest: cursor}
+	copy(execArgs[1:], args)
+	return execArgs
+}
+
+func buildCmdText(spName string, args ...interface{}) string {
+	cmdText := fmt.Sprintf("BEGIN %s(:1", spName)
+	for i := 0; i < len(args); i++ {
+		cmdText += fmt.Sprintf(", :%d", i+2)
+	}
+	cmdText += "); END;"
+	return cmdText
+}
+
+func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 	v := reflect.ValueOf(obj).Elem()
 	t := reflect.TypeOf(obj).Elem()
 	tags := make(map[string]string)
@@ -101,13 +120,13 @@ func (o *OracleSqlxStatement) ExecuteSPWithCursor(ctx context.Context) error {
 		field := t.Field(i)
 		fieldName := field.Name
 		tagValue := field.Tag.Get("oracle")
-
 		if tagValue != "" {
 			tags[tagValue] = fieldName
 		}
 	}
 	for i, col := range cols {
 		fieldName := tags[col]
+		fmt.Println(fieldName)
 		field := v.FieldByName(fieldName)
 		if field.IsValid() && field.CanSet() {
 			fieldType := field.Type()
@@ -125,4 +144,9 @@ func (o *OracleSqlxStatement) ExecuteSPWithCursor(ctx context.Context) error {
 		}
 	}
 
-}*/
+}
+
+type CustomMap struct {
+	string
+	bool
+}

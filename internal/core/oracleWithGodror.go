@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
@@ -19,36 +20,37 @@ type OracleSqlxStatementGodror struct {
 	db *sqlx.DB
 }
 
-func (o *OracleSqlxStatementGodror) OpenOracle(config env.EnvApp) {
-	connectionString := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, config.DB_USERNAME, config.DB_PASSWORD, fmt.Sprintf("%s:%s/%s", config.DB_HOST, config.DB_PORT, config.DB_SERVICE))
+func (o *OracleSqlxStatementGodror) OpenOracle(config env.EnvApp) *sqlx.DB {
+	timeZone := "UTC"
+	connectionString := fmt.Sprintf(`user="%s" password="%s" timezone="%s" connectString="%s"`, config.DB_USERNAME, config.DB_PASSWORD, timeZone, fmt.Sprintf("%s:%s/%s", config.DB_HOST, config.DB_PORT, config.DB_SERVICE))
 	db, err := sqlx.Open("godror", connectionString)
 	if err != nil {
 		panic(err)
 	}
-	o.db = db
 	var queryResultColumnOne string
-	row := o.db.QueryRow("SELECT systimestamp FROM dual")
+	row := db.QueryRow("SELECT systimestamp FROM dual")
 	err = row.Scan(&queryResultColumnOne)
 	if err != nil {
 		panic(fmt.Errorf("error scanning db: %w", err))
 	}
 	fmt.Println("The time in the database ", queryResultColumnOne)
+
+	return db
 }
 
-func (o *OracleSqlxStatementGodror) ExecuteSPWithCursor() error {
+func (o *OracleSqlxStatementGodror) ExecuteSPWithCursor(ctx context.Context, db *sqlx.DB) error {
 	// Prepare the statement with cursor output
-	defer o.db.Close()
+	defer db.Close()
 	// Definir el nombre del procedimiento almacenado y sus argumentos
 	cuil := "20352579972" // Ejemplo de valor de entrada
 	var rset1 driver.Rows
 	const query = `BEGIN PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO(:1, :2); END;`
-
-	stmt, err := o.db.Prepare(query)
+	conn, err := db.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("%s: %w", query, err)
+		log.Printf("Error getting connection: %+v", err)
 	}
-	defer stmt.Close()
-	if _, err := stmt.Exec(sql.Out{Dest: &rset1}, cuil); err != nil {
+
+	if _, err := conn.ExecContext(ctx, query, sql.Out{Dest: &rset1}, cuil); err != nil {
 		log.Printf("Error running %q: %+v", query, err)
 	}
 	defer rset1.Close()
@@ -65,5 +67,6 @@ func (o *OracleSqlxStatementGodror) ExecuteSPWithCursor() error {
 		}
 		fmt.Println(dests1)
 	}
+
 	return nil
 }
