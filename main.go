@@ -36,6 +36,7 @@ func main() {
 	var res2 Res2
 	var res3 Res3
 	var res4 []Res4
+	
 	workingExecution := core.WorkingExecution{}
 	workingExecution.OpenOracle(config)
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_NOMBRE_TIPO_TRAMITE", &res1, 4)

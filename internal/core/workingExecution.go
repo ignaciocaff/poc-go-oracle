@@ -104,11 +104,6 @@ func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) ([][]d
 
 func mapToSlice(slicePtr interface{}, cols []string, allRows [][]driver.Value) error {
 	slicePtrValue := reflect.ValueOf(slicePtr)
-
-	if slicePtrValue.Kind() != reflect.Ptr || slicePtrValue.Elem().Kind() != reflect.Slice {
-		fmt.Println("it is not a slice")
-	}
-
 	sliceType := slicePtrValue.Elem().Type()
 	elemType := sliceType.Elem()
 
@@ -117,7 +112,6 @@ func mapToSlice(slicePtr interface{}, cols []string, allRows [][]driver.Value) e
 			newElem := reflect.New(elemType).Elem()
 			mapTo(newElem.Addr().Interface(), cols, val)
 			slicePtrValue.Elem().Set(reflect.Append(slicePtrValue.Elem(), newElem))
-
 		}
 	}
 	return nil
