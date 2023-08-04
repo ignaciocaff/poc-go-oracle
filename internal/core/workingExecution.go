@@ -49,11 +49,13 @@ func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 	fmt.Println("the time in the database ", queryResultColumnOne)
 }
 
-func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, results interface{}, args ...interface{}) (interface{}, error) {
+func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, results interface{}, args ...interface{}) error {
 	conn, err := o.db.Conn(ctx)
+	resultsVal := reflect.ValueOf(results)
+
 	if err != nil {
 		log.Printf("error getting connection: %+v", err)
-		return nil, err
+		return err
 	}
 
 	var cursor driver.Rows
@@ -69,14 +71,19 @@ func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName str
 	cols := cursor.(driver.RowsColumnTypeScanType).Columns()
 	rows := make([]driver.Value, len(cols))
 
-	allRows, err := populateRows(cursor, cols, rows)
-	if err != nil {
-		return nil, err
+	if resultsVal.Kind() == reflect.Ptr && resultsVal.Elem().Kind() == reflect.Slice {
+		allRows, err := populateRows(cursor, cols, rows)
+		if err != nil {
+			return err
+		}
+		mapToSlice(results, cols, allRows)
+	} else {
+		populateOne(cursor, cols, rows)
+		mapTo(results, cols, rows)
 	}
 
-	mapToSlice(results, cols, allRows)
 	cursor.Close()
-	return nil, nil
+	return nil
 }
 
 func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) ([][]driver.Value, error) {
@@ -151,6 +158,9 @@ func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 				if tags[col].bool && fieldType.Kind() == reflect.Bool {
 					val = val == "S"
 				}
+				if fieldType.Kind() == reflect.String {
+					val = trimTrailingWhitespace(val.(string))
+				}
 				destType := reflect.TypeOf(val)
 				if destType.ConvertibleTo(fieldType) {
 					field.Set(reflect.ValueOf(val).Convert(fieldType))
@@ -180,8 +190,15 @@ func buildCmdText(spName string, args ...interface{}) string {
 	return cmdText
 }
 
+func trimTrailingWhitespace(input string) string {
+	if len(input) == 0 {
+		return input
+	}
+	input = strings.TrimRight(input, " ")
+	return input
+}
 
-func populateRowsOneResult(cursor driver.Rows, cols []string, rows []driver.Value) error {
+func populateOne(cursor driver.Rows, cols []string, rows []driver.Value) error {
 	for {
 		if err := cursor.Next(rows); err != nil {
 			if err == io.EOF {

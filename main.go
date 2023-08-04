@@ -32,9 +32,9 @@ func main() {
 	db := oracleSqlxStatementWithGodror.OpenOracle(config)
 	oracleSqlxStatementWithGodror.ExecuteSPWithCursor(ctx, db)*/
 
-	var res1 []Res1
-	var res2 []Res2
-	var res3 []Res3
+	var res1 Res1
+	var res2 Res2
+	var res3 Res3
 	var res4 []Res4
 	workingExecution := core.WorkingExecution{}
 	workingExecution.OpenOracle(config)
@@ -43,10 +43,10 @@ func main() {
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", &res3, "20352579972")
 	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_BANCOS", &res4)
 
-	fmt.Printf("Desde el main %+v\n", res1)
-	fmt.Printf("Desde el main %+v\n", res2)
-	fmt.Printf("Desde el main %+v\n", res3)
-	fmt.Printf("Desde el main %+v\n", res4)
+	fmt.Printf("%+v\n", res1)
+	fmt.Printf("%+v\n", res2)
+	fmt.Printf("%+v\n", res3)
+	fmt.Printf("%+v\n", res4)
 
 }
 
