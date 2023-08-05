@@ -9,8 +9,6 @@ import (
 	"log"
 	"poc/internal/core/env"
 	"time"
-
-	_ "github.com/godror/godror" // Driver de Oracle para sqlx
 	"github.com/jmoiron/sqlx"
 )
 

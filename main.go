@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	//"fmt"
+	//"github.com/ignaciocaff/oraclesp"
 	"poc/internal/core"
 	"poc/internal/core/env"
 	"time"
@@ -12,42 +14,28 @@ func main() {
 	ctx := context.Background()
 	config := env.GetEnv(".env.development")
 
-	/*oracleWithSql := core.Oracle{}
-	oracleWithSql.OpenOracle(config)
-	go oracleWithSql.ExecuteSPWithCursor(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", nil, "20352579972")
+	var a1 Res3
+	var a2 Persona
+	var a3 Usuario
+	var a4 Mensaje
+	var a5 Res5
+	var a6 []Res4
 
-	oracleWithSqlx := core.OracleSqlx{}
-	oracleWithSqlx.OpenOracle(config)
-	oracleWithSqlx.ExecuteSPWithCursor(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", nil, "20352579972")
-	*/
-	/*oracleWithSqlxStament := core.OracleSqlxStatement{}
-	oracleWithSqlxStament.OpenOracle(config)
-	oracleWithSqlxStament.ExecuteSPWithCursor(ctx)*/
-
-	/*oracleSqlxStatementGorm := core.OracleSqlxStatementGorm{}
-	oracleSqlxStatementGorm.OpenOracle(config)
-	oracleSqlxStatementGorm.ExecuteSPWithCursor()*/
-	/*ctx := context.Background()
-	oracleSqlxStatementWithGodror := core.OracleSqlxStatementGodror{}
-	db := oracleSqlxStatementWithGodror.OpenOracle(config)
-	oracleSqlxStatementWithGodror.ExecuteSPWithCursor(ctx, db)*/
-
-	var res1 Res1
-	var res2 Res2
-	var res3 Res3
-	var res4 []Res4
-	
 	workingExecution := core.WorkingExecution{}
-	workingExecution.OpenOracle(config)
-	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_NOMBRE_TIPO_TRAMITE", &res1, 4)
-	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_VALIDAR_USUARIO_TRAMITE", &res2, "23179917939", 54075)
-	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", &res3, "20352579972")
-	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_BANCOS", &res4)
+	workingExecution.OpenOracle(ctx, config)
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_DATOS_FALLECIMIENTO", &a1, "20352579972")
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_SEGURIDAD_PERSONAS.PR_OBTENER_DATOS_COMPARAR", &a2, "20352579972")
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_SEGURIDAD_CONSULTAS.PR_OBTENER_USUARIO_X_PERS", &a3, "20352579972", "01", "35257997", 0)
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_SEGURIDAD_PERSONAS.PR_ACTUALIZAR_FUNC_X_CUIL", &a4, "20352579972")
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_SEGURIDAD_CONSULTAS.PR_OBT_TIPOS_USU_X_USR", &a5, 213, 2)
+	workingExecution.ExecuteStoreProcedure(ctx, "PKG_TRAMITES_CONSULTAS.PR_OBT_BANCOS", &a6)
 
-	fmt.Printf("%+v\n", res1)
-	fmt.Printf("%+v\n", res2)
-	fmt.Printf("%+v\n", res3)
-	fmt.Printf("%+v\n", res4)
+	fmt.Printf("%+v\n", a1)
+	fmt.Printf("%+v\n", a2)
+	fmt.Printf("%+v\n", a3)
+	fmt.Printf("%+v\n", a4)
+	fmt.Printf("%+v\n", a5)
+	fmt.Printf("%+v\n", a6)
 
 }
 
@@ -73,4 +61,32 @@ type Res1 struct {
 type Res4 struct {
 	Id     int    `oracle:"Id"`
 	Nombre string `oracle:"Nombre"`
+}
+
+type Mensaje struct {
+	Mensaje string `oracle:"Mensaje"`
+}
+
+type Res5 struct {
+	Id        int    `oracle:"Id"`
+	Nombre    string `oracle:"Nombre"`
+	ImageName string `oracle:"NombreImagen"`
+}
+
+type Usuario struct {
+	IdUsuario int `oracle:"IdUsuario"`
+}
+
+type Persona struct {
+	PerNroInt    int    `oracle:"PerNroInt"`
+	Celular      string `oracle:"Celular"`
+	Telefono     string `oracle:"Telefono"`
+	Correo       string `oracle:"Correo"`
+	IdLocalidad  int    `oracle:"IdLocalidad"`
+	Barrio       string `oracle:"Barrio"`
+	Calle        string `oracle:"Calle"`
+	Altura       string `oracle:"Altura"`
+	Depto        string `oracle:"Depto"`
+	Piso         string `oracle:"Piso"`
+	CodigoPostal int    `oracle:"CodigoPostal"`
 }

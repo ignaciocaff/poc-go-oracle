@@ -6,14 +6,16 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
-	"log"
+
+	//"io"
 	"poc/internal/core/env"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
-	_ "github.com/godror/godror" // Driver de Oracle para sqlx
 	"github.com/jmoiron/sqlx"
+	go_ora "github.com/sijms/go-ora/v2"
 )
 
 type WorkingExecution struct {
@@ -31,8 +33,8 @@ type Persona struct {
 	Mail            string    `oracle:"Mail"`
 }
 
-func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
-	timeZone := "UTC"
+func (o *WorkingExecution) OpenOracle(ctx context.Context, config env.EnvApp) *sqlx.DB {
+	/*timeZone := "UTC"
 	connectionString := fmt.Sprintf(`user="%s" password="%s" timezone="%s" connectString="%s"`, config.DB_USERNAME, config.DB_PASSWORD, timeZone, fmt.Sprintf("%s:%s/%s", config.DB_HOST, config.DB_PORT, config.DB_SERVICE))
 	db, err := sqlx.Open("godror", connectionString)
 	if err != nil {
@@ -47,46 +49,70 @@ func (o *WorkingExecution) OpenOracle(config env.EnvApp) {
 		panic(fmt.Errorf("error scanning db: %w", err))
 	}
 	fmt.Println("the time in the database ", queryResultColumnOne)
+
+	return db*/
+	urlOptions := map[string]string{}
+	port, err := strconv.Atoi(config.DB_PORT)
+	databaseUrl := go_ora.BuildUrl(config.DB_HOST, port, config.DB_SERVICE, config.DB_USERNAME, config.DB_PASSWORD, urlOptions)
+	fmt.Println("connection string: ", databaseUrl)
+
+	conn, err := sqlx.ConnectContext(ctx, "oracle", databaseUrl) //db, err := sqlx.Open("goracle", connectionString)
+	if err != nil {
+		panic(fmt.Errorf("error in sql.Open: %w", err))
+	}
+
+	var queryResultColumnOne string
+	row := conn.QueryRow("SELECT systimestamp FROM dual")
+	err = row.Scan(&queryResultColumnOne)
+	if err != nil {
+		panic(fmt.Errorf("error scanning db: %w", err))
+	}
+	fmt.Println("The time in the database ", queryResultColumnOne)
+	o.db = conn
+
+	return conn
 }
 
 func (o *WorkingExecution) ExecuteStoreProcedure(ctx context.Context, spName string, results interface{}, args ...interface{}) error {
-	conn, err := o.db.Conn(ctx)
+	first := time.Now()
+
+	fmt.Println("Starting procedure " + spName + " time " + first.String())
+
 	resultsVal := reflect.ValueOf(results)
 
-	if err != nil {
-		log.Printf("error getting connection: %+v", err)
-		return err
-	}
-
-	var cursor driver.Rows
-
+	var cursor go_ora.RefCursor
 	cmdText := buildCmdText(spName, args...)
-
 	execArgs := buildExecutionArguments(&cursor, args...)
 
-	if _, err := conn.ExecContext(ctx, cmdText, execArgs...); err != nil {
-		log.Printf("error running %q: %+v", cmdText, err)
+	_, err := o.db.ExecContext(ctx, cmdText, execArgs...)
+
+	if err != nil {
+		panic(fmt.Errorf("error scanning db: %w", err))
 	}
 
-	cols := cursor.(driver.RowsColumnTypeScanType).Columns()
-	rows := make([]driver.Value, len(cols))
+	rows, err := cursor.Query()
+	if err != nil {
+		return err
+	}
+	cols := rows.Columns()
+	dests := make([]driver.Value, len(cols))
 
 	if resultsVal.Kind() == reflect.Ptr && resultsVal.Elem().Kind() == reflect.Slice {
-		allRows, err := populateRows(cursor, cols, rows)
+		allRows, err := populateRows(rows, cols, dests)
 		if err != nil {
 			return err
 		}
 		mapToSlice(results, cols, allRows)
 	} else {
-		populateOne(cursor, cols, rows)
-		mapTo(results, cols, rows)
+		populateOne(rows, cols, dests)
+		mapTo(results, cols, dests)
 	}
-
 	cursor.Close()
+	fmt.Println("Ending procedure " + spName + " time " + time.Now().String())
 	return nil
 }
 
-func populateRows(cursor driver.Rows, cols []string, rows []driver.Value) ([][]driver.Value, error) {
+func populateRows(cursor *go_ora.DataSet, cols []string, rows []driver.Value) ([][]driver.Value, error) {
 	var allRows [][]driver.Value
 	for {
 		if err := cursor.Next(rows); err != nil {
@@ -168,7 +194,7 @@ func mapTo(obj interface{}, cols []string, dests []driver.Value) {
 	}
 }
 
-func buildExecutionArguments(cursor *driver.Rows, args ...interface{}) []interface{} {
+func buildExecutionArguments(cursor *go_ora.RefCursor, args ...interface{}) []interface{} {
 	execArgs := make([]interface{}, len(args)+1)
 	execArgs[0] = sql.Out{Dest: cursor}
 	copy(execArgs[1:], args)
@@ -192,7 +218,7 @@ func trimTrailingWhitespace(input string) string {
 	return input
 }
 
-func populateOne(cursor driver.Rows, cols []string, rows []driver.Value) error {
+func populateOne(cursor *go_ora.DataSet, cols []string, rows []driver.Value) error {
 	for {
 		if err := cursor.Next(rows); err != nil {
 			if err == io.EOF {
